@@ -35,12 +35,12 @@ storm<-aggregate(cbind(FATALITIES_COUNT) ~ EVENT_ID + STATE+MONTH_NAME + EVENT_T
 
 ```{r}
 
-AllModel<-glm(formula = FATALITIES_COUNT ~ EVENT_TYPE +STATE +MONTH_NAME+EVENT_TYPE+FATALITY_LOCATION+POP+PERFAT, family = poisson(link=log), data = storm)
+mod<-glm(formula = FATALITIES_COUNT ~ EVENT_TYPE +STATE +MONTH_NAME+EVENT_TYPE+FATALITY_LOCATION+POP+PERFAT, family = poisson(link=log), data = storm)
 
-summary(AllModel)
-summary(AllModel)$coefficients
-pR2(AllModel)
-anova(AllModel, test="Chisq")
+summary(mod)
+summary(mod)$coefficients
+pR2(mod)
+anova(mod, test="Chisq")
 
 ```
 
