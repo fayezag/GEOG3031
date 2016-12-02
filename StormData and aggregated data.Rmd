@@ -1,0 +1,334 @@
+---
+title: "CleaningDataandMergingwithCensusPop"
+author: "Kristin Robinson"
+date: "November 7, 2016"
+output: html_document
+---
+
+---
+
+This document shows how to access storm data from Google sheets, "clean"" the data and merge population data from another census data. 
+The data stored in the Google sheet has all the data from 2000-2015 from the NOAA "storm details" and "fatalities" csv files. 
+You must install and include the gsheet library to access the Google sheet.
+There are some sample charts and graphs in the last R chunk. These are just for example and can be removed.
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message=FALSE)
+```
+
+```{r}
+##LOAD LIBRARIES AND LOAD DATA FROM GOOGLE DOCS
+
+# Libraries
+library(mosaic)
+library(data.table)
+library(gsheet)
+library(ggplot2)
+install.packages('gsheet')
+library(plyr)
+
+# Data
+url<-'https://docs.google.com/spreadsheets/d/1kjHLs0FaapCnuoS54jHv2RM7UnzIoNl7kJL5uBQyz48/edit?usp=sharing'
+storm <- gsheet2tbl(url)
+
+head(storm)
+
+url2<-'https://docs.google.com/a/colorado.edu/spreadsheets/d/1pFAtBDRLIVlZespT92fWgqWYh_6wwZe-a67C7KGz7uU/edit?usp=sharing'
+
+census<-gsheet2tbl(url2)
+
+
+```
+
+```{r}
+##DATA CLEANUP
+# 1. Remove columns you do not need.
+# 2. Remove all cases with NA, "Unknown" or "Other"
+# 3. Add a column for fatalities count
+# 4. Combine overlapping event types (ex. combine extreme heat and heat, hurricane/typhoon and hurricane, etc.) NOTE: These are suggestions and can be easily changed!
+
+
+
+# Choose columns to get rid of
+drop <- c("X","BEGIN_YEARMONTH","BEGIN_DAY","BEGIN_TIME","END_YEARMONTH","END_DAY","END_TIME","EPISODE_ID","STATE_FIPS","CZ_TYPE","CZ_FIPS","CZ_NAME","WFO","BEGIN_DATE_TIME","CZ_TIMEZONE","END_DATE_TIME","INJURIES_DIRECT","INJURIES_INDIRECT","DEATHS_DIRECT","DEATHS_INDIRECT","DAMAGE_PROPERTY","DAMAGE_CROPS","SOURCE","MAGNITUDE","MAGNITUDE_TYPE","FLOOD_CAUSE","CATEGORY","TOR_F_SCALE","TOR_LENGTH","TOR_WIDTH","TOR_OTHER_WFO","TOR_OTHER_CZ_STATE","TOR_OTHER_CZ_FIPS","TOR_OTHER_CZ_NAME","BEGIN_RANGE","BEGIN_AZIMUTH","BEGIN_LOCATION","END_RANGE","END_AZIMUTH","END_LOCATION","BEGIN_LAT","BEGIN_LON","END_LAT","END_LON","EPISODE_NARRATIVE","EVENT_NARRATIVE","DATA_SOURCE","FAT_TIME","FATALITY_DATE","EVENT_YEARMONTH","FATALITY_TYPE")
+
+# REMOVE UNUSED COLUMNS (VARS)
+storm = storm[,!(names(storm) %in% drop)]
+
+# REMOVE CASES W/NA, OTHER and UNKNOWN
+storm$FATALITY_LOCATION[storm$FATALITY_LOCATION=="Unknown"] <- NA
+storm$FATALITY_LOCATION[storm$FATALITY_LOCATION=="Other"] <- NA
+storm$FATALITY_SEX[storm$FATALITY_SEX=="Unknown"] <- NA
+storm$FATALITY_SEX[storm$FATALITY_SEX==""] <- NA
+storm <- na.omit(storm)
+
+
+# ADD FATALITIES COUNT COLUMN
+storm$FATALITIES_COUNT <- 1  # Use the same value (1) for all rows
+
+# CONDSENSE CATEGORIES
+storm$EVENT_TYPE[grep("*Astronomical Low Tide*|*High Surf*|*Rip Current*|*Storm Surge/Tide*|*Sneakerwave*|*Tsunami*", storm$EVENT_TYPE)] <- "Tide/Tsunami"
+storm$EVENT_TYPE[grep("*Blizzard*|*Heavy Snow*|*Ice Storm*|*Lake-Effect Snow*|*Winter Weather*|*Winter Storm*", storm$EVENT_TYPE)] <- "Winter Storm"
+storm$EVENT_TYPE[grep("*Coastal Flood*|*Flash Flood* |*Flood*", storm$EVENT_TYPE)] <- "Flood"
+storm$EVENT_TYPE[grep("*Cold/Wind Chill*|*Extreme Cold/Wind Chill*|*Frost/Freeze*|*Sleet*|*Cold*", storm$EVENT_TYPE)] <- "Cold"
+storm$EVENT_TYPE[grep("*Marine High Wind*|*Marine Strong Wind*|*Marine Thunderstorm Wind*|*Waterspout*|*Marine Dense Fog*", storm$EVENT_TYPE)] <- "Marine Weather"
+storm$EVENT_TYPE[grep("*Debris Flow*|*Landslide*|*Avalanche*", storm$EVENT_TYPE)] <- "Landslide"
+storm$EVENT_TYPE[grep("*Freezing Fog*|*Dense Fog*", storm$EVENT_TYPE)] <- "Fog"
+storm$EVENT_TYPE[grep("*Dense Smoke*|*Wildfire*", storm$EVENT_TYPE)] <- "Fire"
+storm$EVENT_TYPE[grep("*Dust Devil*|*Dust Storm*", storm$EVENT_TYPE)] <- "Dust Storm"
+storm$EVENT_TYPE[grep("*High Wind*|*Strong Wind*|*Thunderstorm Wind*", storm$EVENT_TYPE)] <- "Wind"
+storm$EVENT_TYPE[grep("*Excessive Heat*|*Heat*", storm$EVENT_TYPE)] <- "Heat"
+storm$EVENT_TYPE[grep("*Hail*", storm$EVENT_TYPE)] <- "Hail"
+storm$EVENT_TYPE[grep("*Heavy Rain*", storm$EVENT_TYPE)] <- "Heavy Rain"
+storm$EVENT_TYPE[grep("*Lightning*", storm$EVENT_TYPE)] <- "Lightning"
+storm$EVENT_TYPE[grep("*Hurricane*|*Hurricane (Typhoon)*|*Tropical Depression*|*Tropical Storm*", storm$EVENT_TYPE)] <- "Hurricane"
+storm$EVENT_TYPE[grep("*Tornado*|*Funnel Cloud*", storm$EVENT_TYPE)] <- "Tornado"
+
+#CONDENSE LOCATIONS
+storm$FATALITY_LOCATION[grep("*Long Span Roof*", storm$FATALITY_LOCATION)] <- "Roof"
+storm$FATALITY_LOCATION[grep("*Permanent Structure*", storm$FATALITY_LOCATION)] <- "Perm. Struct"
+storm$FATALITY_LOCATION[grep("*Outside/Open Areas*", storm$FATALITY_LOCATION)] <- "Open Space"
+storm$FATALITY_LOCATION[grep("*Heavy Equipment/Construction*", storm$FATALITY_LOCATION)] <- "Heavy Equipment"
+storm$FATALITY_LOCATION[grep("*Boat*|*Boating*", storm$FATALITY_LOCATION)] <- "Boat"
+storm$FATALITY_LOCATION[grep("*Mobile/Trailer Home*", storm$FATALITY_LOCATION)] <- "Mobile Home"
+storm$FATALITY_LOCATION[grep("*Vehicle/Towed Trailer*", storm$FATALITY_LOCATION)] <- "Vehicle"
+storm$FATALITY_LOCATION[grep("*Permanent Home*", storm$FATALITY_LOCATION)] <- "Perm. Home"
+
+# Toupper state names in State Pop data
+census$STATE<-toupper(census$STATE)
+# Add population data to storm dataframe
+storm <- join(storm, census, by = "STATE")
+```
+
+
+##SAMPLE GRAPHS AND CHARTS (very basic data)
+```{r}
+#1. Histogram: Fatalities per Year
+hist(storm$YEAR, main="Number of Fatalities per Year", xlab="Year", ylab="Fatalities")
+```
+
+#2. Barplot and List: Fatalities by event type
+```{r}
+ET<-table(storm$EVENT_TYPE)
+ET = as.data.frame(ET)
+ET = ET[order(ET$Freq, decreasing=TRUE),]
+barplot(ET[,2], names.arg = ET[,1], main="Fatalities by Event Type", ylab="Fatalities")
+```
+
+#3. Boxplot and Count: Sex
+```{r}
+boxplot(storm$FATALITY_AGE~storm$FATALITY_SEX, main="Age and Sex Fatalities", ylab="Age")
+Sex_count<-count(storm$FATALITY_SEX)
+Sex_count
+```
+
+#4. Boxplot: Fatality location and age
+```{r}
+boxplot(FATALITY_AGE~FATALITY_LOCATION, main="Fatality Location", ylab="Age", data=storm)
+
+StatePop = read.csv("State Pop 2010.csv")
+
+```
+
+####BARPLOT FOR MONTH
+```{r}
+MN <-table(storm$MONTH_NAME)
+MN = as.data.frame(MN)
+MN = MN[order(MN$Freq, decreasing=TRUE),]
+barplot(MN[,2], names.arg = MN[,1], main="Fatalities by Month", ylab="Fatalities")
+```
+
+####DENSITY PLOT FOR FATALITY COUNTS
+```{r}
+d <- density(aggPop$FATALITIES_COUNT)
+plot(d, main = "Fatalities Count by Storm Event")
+polygon(d, col="red", border="blue")
+```
+
+####AGGREGATING THE DATA
+```{r}
+aggEVENT <- aggregate(storm$FATALITIES_COUNT, by = list(EVENT=storm$EVENT_ID), FUN = sum)
+poiEVENT <- glm(x ~ EVENT, family = poisson, data = aggEVENT)
+summary(poiEVENT)
+head(aggEVENT)
+
+
+aggAGE <- aggregate(storm$FATALITY_AGE, by = list(EVENT_ID=storm$EVENT_ID), FUN = mean)
+head(aggAGE)
+
+aggPop<-aggregate(cbind(FATALITIES_COUNT) ~ EVENT_ID + MONTH_NAME + STATE + EVENT_TYPE, data = storm, FUN = sum)
+head(aggPop)
+
+aggFATALITIES <- merge(aggPop, aggAGE, by="EVENT_ID")
+names(aggFATALITIES)[6] <- "avgAGE"
+head(aggFATALITIES)
+
+aggSTORMDATA <- merge(aggFATALITIES, census, by="STATE")
+head(aggSTORMDATA)
+
+aggSTORMDATA$perFATALITIESpop <- aggSTORMDATA$FATALITIES_COUNT/aggSTORMDATA$Total_POP_.2010*100
+
+d <- density(aggSTORMDATA$FATALITIES_COUNT)
+plot(d, main = "Fatalities Count by Storm Event")
+polygon(d, col="red", border="blue")
+
+
+```
+
+____________________________________________________________________________________________
+
+##Base "model"
+```{r}
+
+STORMDATA = read.csv("STORMDATA.csv")
+
+model1= glm(FATALITIES_COUNT ~ EVENT_ID + avgAGE + EVENT_TYPE + MONTH_NAME + STATE + perFATALITIESpop, family=poisson(link=log), data=STORMDATA)
+
+summary(model1)
+anova(model1, test="Chisq")
+#1-(resid deviance/null deviance)
+```
+
+##Random notes and converting aggregated data to csv file
+```{r}
+write.csv(aggSTORMDATA, file = "STORMDATA.csv")
+#pseudo R^2
+#log log model
+#for a 1% increase in this we expect a 1 % increase in this
+```
+
+##Model 2
+```{r}
+
+##EVENT_TYPE + MONTH_NAME + STATE + perFATALITIESpop + avgAGE
+model2= glm(FATALITIES_COUNT ~  EVENT_TYPE + MONTH_NAME + STATE + perFATALITIESpop + avgAGE, family=poisson(link=log), data=STORMDATA)
+summary(model2)
+anova(model2, test="Chisq")
+plot(model2)
+    #The p-value on the chi squared value is greater than 0.05 and therefore is not significant
+```
+
+##Model 3
+```{r}
+###EVENT_TYPE + MONTH_NAME + STATE + perFATALITIESpop
+model3= glm(FATALITIES_COUNT ~  EVENT_TYPE + MONTH_NAME + STATE + perFATALITIESpop, family=poisson(link=log), data=STORMDATA)
+summary(model3)
+anova(model3, test="Chisq")
+
+1-(3054.4/6015.1) #pseudo R^2 = 0.4922113 -> this could be improved
+```
+
+##Model 4
+```{r}
+###EVENT_TYPE + MONTH_NAME + STATE + perFATALITIESpop + EVENT_TYPE:MONTH_NAME...
+model4= glm(FATALITIES_COUNT ~  EVENT_TYPE + MONTH_NAME + STATE + perFATALITIESpop + EVENT_TYPE:MONTH_NAME, family=poisson(link=log), data=STORMDATA)
+summary(model4)
+anova(model4, test="Chisq")
+1-(2800.0/6015.1)   #pseudo R^2 = 0.5345048 -> this is better... 
+#one minor problem is that some EVENT_TYPEs did not occur in certain months so there are a few NAs
+```
+
+##Model 5
+```{r}
+##EVENT_TYPE + MONTH_NAME + STATE + perFATALITIESpop + EVENT_TYPE:MONTH_NAME + EVENT_TYPE:STATE...
+model5= glm(FATALITIES_COUNT ~  EVENT_TYPE + MONTH_NAME + STATE + perFATALITIESpop + EVENT_TYPE:MONTH_NAME + EVENT_TYPE:STATE, family=poisson(link=log), data=STORMDATA)
+summary(model5)
+anova(model5, test="Chisq")
+   #The anova test revealed that the interaction between EVENT_TYPE and STATE is not significant since the p value on the chi squared value was greater than 0.05. Many EVENT_TYPEs did not happen in certain STATES so we had several NAs
+    #Coefficients: (382 not defined because of singularities)
+```
+
+##Model 6
+```{r}
+
+######EVENT_TYPE + MONTH_NAME + STATE + perFATALITIESpop + EVENT_TYPE:MONTH_NAME + MONTH_NAME:STATE...
+model6= glm(FATALITIES_COUNT ~  EVENT_TYPE + MONTH_NAME + STATE + perFATALITIESpop + EVENT_TYPE:MONTH_NAME + MONTH_NAME:STATE, family=poisson(link=log), data=STORMDATA)
+summary(model6)
+anova(model6, test="Chisq")
+    #there seems to be missing data or redundancy with state and month name so there were many NAs in the summary; also, the P value on the chi squared value is also not significant so this interaction is not useful. 
+  #(92 not defined because of singularities)
+```
+
+##Model 7 
+```{r}
+##EVENT_TYPE + STATE + MONTH_NAME + perFATALITIESpop + EVENT_TYPE:MONTH_NAME...   switching month_name and state
+model7= glm(FATALITIES_COUNT ~  EVENT_TYPE + STATE + MONTH_NAME + perFATALITIESpop + EVENT_TYPE:MONTH_NAME, family=poisson(link=log), data=STORMDATA)
+summary(model7)
+anova(model7, test="Chisq")
+###same pseudo R^2... does not seem to make a difference- slightly better p values on chi squared for STATE and MONTH_NAME but both are still significant.... this one might be better?
+```
+
+##Model 8 ***
+```{r}
+##EVENT_TYPE + STATE + MONTH_NAME + perFATALITIESpop + EVENT_TYPE:MONTH_NAME + EVENT_TYPE:STATE... go off of model 7 and put interaction between EVENT_TYPE:STATE before EVENT_TYPE:MONTH_NAME
+model8= glm(FATALITIES_COUNT ~  EVENT_TYPE + STATE + MONTH_NAME + perFATALITIESpop + EVENT_TYPE:STATE + EVENT_TYPE:MONTH_NAME, family=poisson(link=log), data=STORMDATA)
+summary(model8)
+anova(model8, test="Chisq")
+plot(model8)
+
+1-(2447.7/6015.1) # pseudo R^2 = 0.5930741 - same as model 5
+  #when we switch the interaction terms, it appears that EVENT_TYPE:STATE now becomes significant unlike in Model 5, so we should keep it. 
+  #(382 not defined because of singularities)
+```
+
+##Model 9
+```{r}
+##Model 8 + interaction between STATE and MONTH_NAME
+model9= glm(FATALITIES_COUNT ~  EVENT_TYPE + STATE + MONTH_NAME + perFATALITIESpop + EVENT_TYPE:STATE + EVENT_TYPE:MONTH_NAME + STATE:MONTH_NAME, family=poisson(link=log), data=STORMDATA)
+summary(model9)
+anova(model9, test="Chisq")
+
+1-(2180.4/6015)
+  #pseudo R2= 0.6375062 ... better... BUT...
+  #The interaction between STATE:MONTH was not significant.... 
+```
+
+#Model 10******
+```{r}
+##Model 8 + interaction between STATE and perFATALITIESpop
+model10= glm(FATALITIES_COUNT ~  EVENT_TYPE + STATE + MONTH_NAME + perFATALITIESpop + EVENT_TYPE:STATE + EVENT_TYPE:MONTH_NAME + STATE:perFATALITIESpop, family=poisson(link=log), data=STORMDATA)
+summary(model10)
+anova(model10, test="Chisq")
+plot(model10)
+#Pseudo R^2 =  0.8734034
+#This appears to be a significant interaction...
+
+  #(Null deviance: 6015.09  on 5575  degrees of freedom  /  Residual deviance:  761.49  on / 4962  degrees of freedom    AIC: 14170)
+```
+
+##Model 11
+```{r}
+##Model 10 putting interaction between STATE:perFATALITIESpop before other interaction terms...
+model11= glm(FATALITIES_COUNT ~  EVENT_TYPE + STATE + MONTH_NAME + perFATALITIESpop + STATE:perFATALITIESpop + EVENT_TYPE:STATE + EVENT_TYPE:MONTH_NAME, family=poisson(link=log), data=STORMDATA)
+summary(model11)
+anova(model11, test="Chisq")
+1-(761.49/6015.09) #Pseudo R^2 =  0.8734034
+#when this interaction comes before the others, it makes the other interaction terms completely insignificant. This makes me wonder whether or not we should even include the interaction between STATE and perFATALITIESpop. If we do, it would be Model 10. Does the interaction of STATE:perFATALITIESpop even make sense in affecting the response variable??
+```
+ 
+ 
+ ***** does it even make sense to have the percent of the population that dies as an explanatory variable? This does not seem to describe the response variable but just a covariate of state population. Would it be better to use state population of 2010 or would that have the same effect?
+ 
+ possibly try adding avg age again?
+ ask Carson if percent of the population that died during that storm event or just using population of the state - would these need some sort of interaction term in the model?
+ 
+ ##Model 12
+```{r}
+ ##Model 8 + interaction EVENT_TYPE:perFATALITIESpop
+model12= glm(FATALITIES_COUNT ~  EVENT_TYPE + STATE + MONTH_NAME + perFATALITIESpop + EVENT_TYPE:STATE + EVENT_TYPE:MONTH_NAME + EVENT_TYPE:perFATALITIESpop, family=poisson(link=log), data=STORMDATA)
+summary(model12)
+anova(model12, test="Chisq")
+
+#(384 not defined because of singularities)
+#(Null deviance: 6015.1  on 5575  degrees of freedom  /  Residual deviance: 2062.5  on 5000  degrees of freedom  /  AIC: 15395)
+#pseudo R^2... 1-(2062.5/6015.1) = 0.6571129
+```
+
+#Model 13
+```{r}
+##Model 12 + STATE:perFATALITIESpop
+model13= glm(FATALITIES_COUNT ~  EVENT_TYPE + STATE + MONTH_NAME + perFATALITIESpop + EVENT_TYPE:STATE + EVENT_TYPE:MONTH_NAME + EVENT_TYPE:perFATALITIESpop + STATE:perFATALITIESpop, family=poisson(link=log), data=STORMDATA)
+summary(model13)
+anova(model13, test="Chisq")
+pR2(model13)
+#All of these Explanatory Variables significanly explain the response variable based on the p value of chi squared for the coefficients which are all abobe 0.05. However, we need to discuss whether or not we want to use all of these terms because there are too many coefficients and R becomes very slow when given simple commands. There are 625 degrees of freedom which is insane. so... Something to discuss. 
+
