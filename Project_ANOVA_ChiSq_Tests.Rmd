@@ -1,0 +1,46 @@
+---
+title: "GEOG3023_Tally(O)_ANOVA_AND_CHISQ_TESTs"
+author: "Kristin Robinson"
+date: "Dec.2 , 2016"
+output: html_document
+---
+
+---
+
+This document shows how to access storm data from Google sheets, "clean"" the data and merge population data from another census data. 
+The data stored in the Google sheet has all the data from 2000-2015 from the NOAA "storm details" and "fatalities" csv files. 
+You must install and include the gsheet library to access the Google sheet.
+There are some sample charts and graphs in the last R chunk. These are just for example and can be removed.
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message=FALSE)
+```
+
+```{r}
+##LOAD LIBRARIES AND LOAD DATA FROM GOOGLE DOCS
+
+# Libraries
+library(mosaic)
+library(gsheet)
+library(ggplot2)
+library(plyr)
+library(pscl)
+
+# Data
+ x <- getURL("https://raw.githubusercontent.com/RobinsonK/GEOG3031/master/storm2.csv?token=ARoUsTaimJLs9T1Bo4LPTMTgdoP6EUMGks5YSyWAwA%3D%3D")
+x2<-read.csv(text=x)
+storm<-aggregate(cbind(FATALITIES_COUNT) ~ EVENT_ID + STATE+MONTH_NAME + EVENT_TYPE +FATALITY_LOCATION+POP_PERFAT, data = x2, sum)
+```
+
+
+
+```{r}
+
+AllModel<-glm(formula = FATALITIES_COUNT ~ EVENT_TYPE +STATE +MONTH_NAME+EVENT_TYPE+FATALITY_LOCATION+POP+PERFAT, family = poisson(link=log), data = storm)
+
+summary(AllModel)
+summary(AllModel)$coefficients
+pR2(AllModel)
+anova(AllModel, test="Chisq")
+
+```
+
